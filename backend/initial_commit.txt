@@ -1,0 +1,1 @@
+git init && git remote add origin https://github.com/akaashnidhiss/agentic-enterprise-workflow-gen.git && git add . && git commit -m "Initial commit: push workspace with .gitignore for .env files" && git push -u origin main

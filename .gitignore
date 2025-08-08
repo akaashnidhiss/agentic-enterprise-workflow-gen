@@ -1,0 +1,26 @@
+# Ignore Python cache and environment files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.env
+.env.*
+
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# Ignore VS Code settings
+.vscode/
+
+# Ignore node modules and build output
+frontend/node_modules/
+frontend/.next/
+
+# Ignore environment files in frontend
+frontend/.env
+frontend/.env.*
+
+# Ignore environment files in backend
+backend/.env
+backend/.env.*
+backend/venv/
