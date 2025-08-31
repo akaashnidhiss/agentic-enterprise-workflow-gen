@@ -1,0 +1,9 @@
+langchain
+openai
+tiktoken
+python-dotenv
+requests
+numpy
+pandas
+tenacity
+jsonschema

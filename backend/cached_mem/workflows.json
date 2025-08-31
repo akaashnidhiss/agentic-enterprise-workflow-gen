@@ -1,0 +1,1352 @@
+{
+  "1::Daily distinct user drop >20%": [
+    {
+      "type": "plan",
+      "artifact": {
+        "check_id": 1,
+        "check_name": "Daily distinct user drop >20%",
+        "targets": [
+          "events"
+        ],
+        "steps": [
+          {
+            "step": 1,
+            "action": "load_tables",
+            "notes": "Load events table CSV into a pandas DataFrame named 'events' from ./data/events.csv. Use only declared columns.",
+            "inputs": {
+              "path": "data/events.csv",
+              "table": "events",
+              "columns": [
+                "event_id",
+                "event_date",
+                "user_id",
+                "event_type",
+                "metadata"
+              ],
+              "read_options": {
+                "dtype": "infer",
+                "parse_dates": false
+              }
+            },
+            "outputs": {
+              "events_df_name": "events",
+              "events_source": "data/events.csv",
+              "loaded_columns": [
+                "event_id",
+                "event_date",
+                "user_id",
+                "event_type",
+                "metadata"
+              ]
+            }
+          },
+          {
+            "step": 2,
+            "action": "transform",
+            "notes": "Normalize event_date to date (no time), drop rows with null user_id for distinct-count accuracy.",
+            "inputs": {
+              "table": "events",
+              "required_columns": [
+                "event_date",
+                "user_id"
+              ],
+              "assumptions": "event_date is date-like; user_id identifies distinct users"
+            },
+            "outputs": {
+              "events_transformed": "events_transformed (event_date as date, user_id non-null)",
+              "transformations": [
+                "events['event_date'] = pd.to_datetime(events['event_date']).dt.date",
+                "events = events[events['user_id'].notna()]"
+              ]
+            }
+          },
+          {
+            "step": 3,
+            "action": "compute_metrics",
+            "notes": "Compute daily distinct user counts: count distinct user_id grouped by event_date and sort ascending to identify last two dates.",
+            "inputs": {
+              "table": "events_transformed",
+              "group_by": "event_date",
+              "metric": "nunique(user_id)"
+            },
+            "outputs": {
+              "daily_distinct_users": "list of {date, distinct_users} ordered ascending",
+              "counts_structure": {
+                "type": "list",
+                "elements": {
+                  "date": "YYYY-MM-DD",
+                  "distinct_users": "int"
+                }
+              }
+            }
+          },
+          {
+            "step": 4,
+            "action": "validate",
+            "notes": "Compare most recent day vs previous day. If fewer than 2 distinct dates, mark as SKIPPED. Compute drop_pct = (prev - last)/prev*100 when prev>0. Handle prev==0 as ERROR.",
+            "inputs": {
+              "daily_distinct_users": "from step 3",
+              "threshold_pct": 20
+            },
+            "outputs": {
+              "last_date": "most recent date or null",
+              "prev_date": "previous date or null",
+              "last_count": "distinct user count on last_date or null",
+              "prev_count": "distinct user count on prev_date or null",
+              "drop_pct": "numeric or null",
+              "validation_state": "PASS/FAIL/SKIPPED/ERROR (pre-decision)"
+            }
+          },
+          {
+            "step": 5,
+            "action": "decide_status",
+            "notes": "Map validation results to final status: FAIL if drop_pct > threshold_pct, PASS if drop_pct <= threshold_pct, SKIPPED if insufficient data, ERROR if prev_count==0 or unexpected error.",
+            "inputs": {
+              "drop_pct": "from step 4",
+              "prev_count": "from step 4",
+              "threshold_pct": 20
+            },
+            "outputs": {
+              "status": "one of PASS, FAIL, SKIPPED, ERROR",
+              "decision_reason": "text explaining mapping (e.g., 'drop_pct 25% > 20% -> FAIL')"
+            }
+          },
+          {
+            "step": 6,
+            "action": "emit_summary",
+            "notes": "Create a single human-readable summary line containing status and key numbers (prev_date, prev_count, last_date, last_count, drop_pct). This line will satisfy the output contract format single_line with fields status and summary.",
+            "inputs": {
+              "status": "from step 5",
+              "last_date": "from step 4",
+              "prev_date": "from step 4",
+              "last_count": "from step 4",
+              "prev_count": "from step 4",
+              "drop_pct": "from step 4"
+            },
+            "outputs": {
+              "summary_line": "string: e.g. 'FAIL: 2025-08-16 distinct users 80 vs 100 on 2025-08-15 (drop 20.0%)'",
+              "output_contract": {
+                "format": "single_line",
+                "fields": [
+                  "status",
+                  "summary"
+                ],
+                "status_domain": [
+                  "PASS",
+                  "FAIL",
+                  "SKIPPED",
+                  "ERROR"
+                ]
+              }
+            }
+          },
+          {
+            "step": 7,
+            "action": "write_artifact",
+            "notes": "Write a Python (pandas) script that implements steps 1-6 to cached_mem/generated_check_1.py. The script must load ./data/events.csv into a DataFrame named 'events' and print a single-line summary to stdout.",
+            "inputs": {
+              "artifact_path": "cached_mem/generated_check_1.py",
+              "requirements": [
+                "pandas only"
+              ],
+              "df_naming": {
+                "events": "events"
+              },
+              "contract": "print one line: status and summary"
+            },
+            "outputs": {
+              "artifact_path": "cached_mem/generated_check_1.py",
+              "artifact_written": true
+            }
+          }
+        ]
+      },
+      "compiled_at": "2025-08-16T09:42:09.263797+00:00Z",
+      "compiled_against": {
+        "checks_hash": "df6044b2160e07212281b54961b0738bdedbff09e4aa749861ef7bd886b5b23f",
+        "schema_cols": {
+          "events": [
+            "event_id",
+            "event_date",
+            "user_id",
+            "event_type",
+            "metadata"
+          ],
+          "orders": [
+            "order_id",
+            "order_date",
+            "user_id",
+            "total_amount",
+            "currency",
+            "status"
+          ],
+          "users": [
+            "user_id",
+            "email",
+            "signup_date",
+            "last_login",
+            "country",
+            "status"
+          ]
+        }
+      }
+    },
+    {
+      "type": "execution",
+      "artifact": {
+        "python_repls": [
+          {
+            "python_repl": "\nimport pandas as pd\nevents = pd.read_csv('./data/events.csv', usecols=['event_id', 'event_date', 'user_id', 'event_type', 'metadata'], dtype=str)\nevents['event_date'] = pd.to_datetime(events['event_date']).dt.date\nevents = events[events['user_id'].notna()]\ndaily_counts = events.groupby('event_date')['user_id'].nunique().reset_index().sort_values('event_date')\nif len(daily_counts) < 2:\n    status = 'SKIPPED'\n    summary = 'SKIPPED: less than two distinct event_date values.'\nelse:\n    prev_date = daily_counts.iloc[-2]['event_date']\n    last_date = daily_counts.iloc[-1]['event_date']\n    prev_count = daily_counts.iloc[-2]['user_id']\n    last_count = daily_counts.iloc[-1]['user_id']\n    if prev_count == 0:\n        status = 'ERROR'\n        summary = f'ERROR: previous day distinct user count is zero on {prev_date}.'\n    else:\n        drop_pct = (prev_count - last_count) / prev_count * 100\n        if drop_pct > 20:\n            status = 'FAIL'\n            summary = f'FAIL: {last_date} distinct users {last_count} vs {prev_count} on {prev_date} (drop {drop_pct:.1f}%)'\n        else:\n            status = 'PASS'\n            summary = f'PASS: {last_date} distinct users {last_count} vs {prev_count} on {prev_date} (drop {drop_pct:.1f}%)'\nprint(f\\\"{status}: {summary}\\\")\n\"\n",
+            "stdout": "",
+            "exit_code": 1
+          },
+          {
+            "python_repl": "\nimport pandas as pd\nevents = pd.read_csv('./data/events.csv', usecols=['event_id', 'event_date', 'user_id', 'event_type', 'metadata'], dtype=str)\nevents['event_date'] = pd.to_datetime(events['event_date']).dt.date\nevents = events[events['user_id'].notna()]\ndaily_counts = events.groupby('event_date')['user_id'].nunique().reset_index().sort_values('event_date')\nif len(daily_counts) < 2:\n    status = 'SKIPPED'\n    summary = 'less than two distinct event_date values.'\nelse:\n    prev_date = daily_counts.iloc[-2]['event_date']\n    last_date = daily_counts.iloc[-1]['event_date']\n    prev_count = daily_counts.iloc[-2]['user_id']\n    last_count = daily_counts.iloc[-1]['user_id']\n    if prev_count == 0:\n        status = 'ERROR'\n        summary = f'previous day distinct user count is zero on {prev_date}.'\n    else:\n        drop_pct = (prev_count - last_count) / prev_count * 100\n        if drop_pct > 20:\n            status = 'FAIL'\n            summary = f'{last_date} distinct users {last_count} vs {prev_count} on {prev_date} (drop {drop_pct:.1f}%)'\n        else:\n            status = 'PASS'\n            summary = f'{last_date} distinct users {last_count} vs {prev_count} on {prev_date} (drop {drop_pct:.1f}%)'\nprint(f'{status}: {summary}')\n\"\n",
+            "stdout": "",
+            "exit_code": 1
+          },
+          {
+            "python_repl": "\nimport pandas as pd\nevents = pd.read_csv('./data/events.csv', usecols=['event_id', 'event_date', 'user_id', 'event_type', 'metadata'], dtype=str)\nevents['event_date'] = pd.to_datetime(events['event_date']).dt.date\nevents = events[events['user_id'].notna()]\ndaily_counts = events.groupby('event_date')['user_id'].nunique().reset_index().sort_values('event_date')\nif len(daily_counts) < 2:\n    status = 'SKIPPED'\n    summary = 'less than two distinct event_date values.'\nelse:\n    prev_date = daily_counts.iloc[-2]['event_date']\n    last_date = daily_counts.iloc[-1]['event_date']\n    prev_count = daily_counts.iloc[-2]['user_id']\n    last_count = daily_counts.iloc[-1]['user_id']\n    if prev_count == 0:\n        status = 'ERROR'\n        summary = f'previous day distinct user count is zero on {prev_date}.'\n    else:\n        drop_pct = (prev_count - last_count) / prev_count * 100\n        if drop_pct > 20:\n            status = 'FAIL'\n            summary = f'{last_date} distinct users {last_count} vs {prev_count} on {prev_date} (drop {drop_pct:.1f}%)'\n        else:\n            status = 'PASS'\n            summary = f'{last_date} distinct users {last_count} vs {prev_count} on {prev_date} (drop {drop_pct:.1f}%)'\nprint(f'{status}: {summary}')\n",
+            "stdout": "FAIL: 2025-08-14 distinct users 4 vs 6 on 2025-08-13 (drop 33.3%)",
+            "exit_code": 0
+          }
+        ],
+        "result": {
+          "status": "FAIL",
+          "summary": "FAIL: 2025-08-14 distinct users 4 vs 6 on 2025-08-13 (drop 33.3%)",
+          "raw_stdout": "FAIL: 2025-08-14 distinct users 4 vs 6 on 2025-08-13 (drop 33.3%)"
+        }
+      },
+      "compiled_at": "2025-08-16T09:42:09.272227+00:00Z",
+      "compiled_against": {
+        "checks_hash": "df6044b2160e07212281b54961b0738bdedbff09e4aa749861ef7bd886b5b23f",
+        "schema_cols": {
+          "events": [
+            "event_id",
+            "event_date",
+            "user_id",
+            "event_type",
+            "metadata"
+          ],
+          "orders": [
+            "order_id",
+            "order_date",
+            "user_id",
+            "total_amount",
+            "currency",
+            "status"
+          ],
+          "users": [
+            "user_id",
+            "email",
+            "signup_date",
+            "last_login",
+            "country",
+            "status"
+          ]
+        }
+      }
+    }
+  ],
+  "2::New NULLs in critical columns": [
+    {
+      "type": "plan",
+      "artifact": {
+        "check_id": 2,
+        "check_name": "New NULLs in critical columns",
+        "steps": [
+          {
+            "step": 1,
+            "action": "load_tables",
+            "notes": "Load the users CSV into a pandas DataFrame named 'users'. Validate that expected columns from schema are present.",
+            "inputs": {
+              "path": "data/users.csv",
+              "table": "users",
+              "expected_columns": [
+                "user_id",
+                "email",
+                "signup_date",
+                "last_login",
+                "country",
+                "status"
+              ]
+            },
+            "outputs": {
+              "users": "DataFrame"
+            }
+          },
+          {
+            "step": 2,
+            "action": "transform",
+            "notes": "Compute current metrics: total rows and null counts for critical columns 'email' and 'signup_date'.",
+            "inputs": {
+              "users": "DataFrame",
+              "columns": [
+                "email",
+                "signup_date"
+              ]
+            },
+            "outputs": {
+              "current_nulls": {
+                "email": "int",
+                "signup_date": "int"
+              },
+              "total_rows": "int"
+            }
+          },
+          {
+            "step": 3,
+            "action": "load_tables",
+            "notes": "Load cached baseline counters from cached_mem/checks_last.csv and extract the row for check_id=2. If file or row is missing, mark baseline as missing.",
+            "inputs": {
+              "path": "cached_mem/checks_last.csv",
+              "filter_check_id": 2
+            },
+            "outputs": {
+              "baseline_row": "object_or_null",
+              "baseline_nulls": {
+                "email": "int_or_null",
+                "signup_date": "int_or_null"
+              },
+              "baseline_present": "bool"
+            }
+          },
+          {
+            "step": 4,
+            "action": "compute_metrics",
+            "notes": "Compare current null counts to baseline. Compute diffs (current - baseline) and boolean flags indicating whether nulls increased per column.",
+            "inputs": {
+              "current_nulls": "from_step_2",
+              "baseline_nulls": "from_step_3"
+            },
+            "outputs": {
+              "diffs": {
+                "email": "int_or_null",
+                "signup_date": "int_or_null"
+              },
+              "increase_flags": {
+                "email": "bool_or_null",
+                "signup_date": "bool_or_null"
+              }
+            }
+          },
+          {
+            "step": 5,
+            "action": "decide_status",
+            "notes": "Decide final status: if baseline missing -> SKIPPED; if any increase_flag is true -> FAIL; if no increases -> PASS. If reading files failed -> ERROR.",
+            "inputs": {
+              "increase_flags": "from_step_4",
+              "baseline_present": "from_step_3",
+              "read_errors": "from_prior_steps_if_any"
+            },
+            "outputs": {
+              "status": "one_of_PASS_FAIL_SKIPPED_ERROR",
+              "reason": "string_explaining_decision"
+            }
+          },
+          {
+            "step": 6,
+            "action": "emit_summary",
+            "notes": "Produce a single human-readable summary line containing status and key numbers (current nulls, baseline nulls, diffs, total rows). This line should be printed to stdout by the execution agent and conform to the output_contract fields 'status' and 'summary'.",
+            "inputs": {
+              "status": "from_step_5",
+              "current_nulls": "from_step_2",
+              "baseline_nulls": "from_step_3",
+              "diffs": "from_step_4",
+              "total_rows": "from_step_2"
+            },
+            "outputs": {
+              "summary_line": "string_matching_output_contract"
+            }
+          },
+          {
+            "step": 7,
+            "action": "write_artifact",
+            "notes": "Persist the updated baseline counts for check_id=2 back to cached_mem/checks_last.csv (create or overwrite row for check_id=2) and write the summary_line to cached_mem/last_result.txt for auditability.",
+            "inputs": {
+              "checks_last_path": "cached_mem/checks_last.csv",
+              "last_result_path": "cached_mem/last_result.txt",
+              "check_id": 2,
+              "current_nulls": "from_step_2",
+              "summary_line": "from_step_6"
+            },
+            "outputs": {
+              "checks_last_updated": "bool",
+              "last_result_written": "bool"
+            }
+          }
+        ]
+      },
+      "compiled_at": "2025-08-16T09:43:24.740206+00:00Z",
+      "compiled_against": {
+        "checks_hash": "df6044b2160e07212281b54961b0738bdedbff09e4aa749861ef7bd886b5b23f",
+        "schema_cols": {
+          "events": [
+            "event_id",
+            "event_date",
+            "user_id",
+            "event_type",
+            "metadata"
+          ],
+          "orders": [
+            "order_id",
+            "order_date",
+            "user_id",
+            "total_amount",
+            "currency",
+            "status"
+          ],
+          "users": [
+            "user_id",
+            "email",
+            "signup_date",
+            "last_login",
+            "country",
+            "status"
+          ]
+        }
+      }
+    },
+    {
+      "type": "execution",
+      "artifact": {
+        "python_repls": [
+          {
+            "python_repl": "```\nimport pandas as pd\nimport os\n\ntry:\n    users = pd.read_csv(\"./data/users.csv\")\n    expected_columns = [\"user_id\", \"email\", \"signup_date\", \"last_login\", \"country\", \"status\"]\n    if not all(col in users.columns for col in expected_columns):\n        raise ValueError(\"Missing expected columns in users table\")\nexcept Exception as e:\n    print(f\"ERROR Loading users: {e}\")\n    exit(1)\n\ntotal_rows = len(users)\ncurrent_nulls = {\n    \"email\": users[\"email\"].isnull().sum(),\n    \"signup_date\": users[\"signup_date\"].isnull().sum()\n}\n\nbaseline_present = False\nbaseline_nulls = {\"email\": None, \"signup_date\": None}\nbaseline_row = None\ntry:\n    checks_last = pd.read_csv(\"cached_mem/checks_last.csv\")\n    baseline_row = checks_last[checks_last['check_id'] == 2]\n    if len(baseline_row) == 1:\n        baseline_present = True\n        baseline_nulls[\"email\"] = int(baseline_row[\"email_nulls\"].iloc[0])\n        baseline_nulls[\"signup_date\"] = int(baseline_row[\"signup_date_nulls\"].iloc[0])\nexcept Exception:\n    baseline_present = False\n\nif not baseline_present:\n    status = \"SKIPPED\"\n    reason = \"Baseline missing\"\n    diffs = {\"email\": None, \"signup_date\": None}\n    increase_flags = {\"email\": None, \"signup_date\": None}\nelse:\n    diffs = {\n        \"email\": current_nulls[\"email\"] - baseline_nulls[\"email\"],\n        \"signup_date\": current_nulls[\"signup_date\"] - baseline_nulls[\"signup_date\"]\n    }\n    increase_flags = {\n        \"email\": diffs[\"email\"] > 0,\n        \"signup_date\": diffs[\"signup_date\"] > 0\n    }\n    if increase_flags[\"email\"] or increase_flags[\"signup_date\"]:\n        status = \"FAIL\"\n        reason = \"New NULLs detected in critical columns\"\n    else:\n        status = \"PASS\"\n        reason = \"No new NULLs in critical columns\"\n\nsummary_line = (f\"{status} | total_rows={total_rows} | \"\n                f\"current_nulls=email:{current_nulls['email']},signup_date:{current_nulls['signup_date']} | \"\n                f\"baseline_nulls=email:{baseline_nulls['email']},signup_date:{baseline_nulls['signup_date']} | \"\n                f\"diffs=email:{diffs['email']},signup_date:{diffs['signup_date']} | reason={reason}\")\nprint(summary_line)\n```",
+            "stdout": "SKIPPED | total_rows=8 | current_nulls=email:1,signup_date:1 | baseline_nulls=email:None,signup_date:None | diffs=email:None,signup_date:None | reason=Baseline missing",
+            "exit_code": 0
+          }
+        ],
+        "result": {
+          "status": "SKIPPED",
+          "summary": "SKIPPED | total_rows=8 | current_nulls=email:1,signup_date:1 | baseline_nulls=email:None,signup_date:None | diffs=email:None,signup_date:None | reason=Baseline missing",
+          "raw_stdout": "SKIPPED | total_rows=8 | current_nulls=email:1,signup_date:1 | baseline_nulls=email:None,signup_date:None | diffs=email:None,signup_date:None | reason=Baseline missing"
+        }
+      },
+      "compiled_at": "2025-08-16T09:43:24.749419+00:00Z",
+      "compiled_against": {
+        "checks_hash": "df6044b2160e07212281b54961b0738bdedbff09e4aa749861ef7bd886b5b23f",
+        "schema_cols": {
+          "events": [
+            "event_id",
+            "event_date",
+            "user_id",
+            "event_type",
+            "metadata"
+          ],
+          "orders": [
+            "order_id",
+            "order_date",
+            "user_id",
+            "total_amount",
+            "currency",
+            "status"
+          ],
+          "users": [
+            "user_id",
+            "email",
+            "signup_date",
+            "last_login",
+            "country",
+            "status"
+          ]
+        }
+      }
+    }
+  ],
+  "3::Order volume spike >50%": [
+    {
+      "type": "plan",
+      "artifact": {
+        "steps": [
+          {
+            "step": 1,
+            "action": "load_tables",
+            "notes": "Load the orders CSV from ./data into a pandas DataFrame named 'orders'. Use schema columns order_id, order_date, user_id, total_amount, currency, status as provided by ai_table_summaries.",
+            "inputs": {
+              "path": "data/orders.csv",
+              "expected_columns": [
+                "order_id",
+                "order_date",
+                "user_id",
+                "total_amount",
+                "currency",
+                "status"
+              ],
+              "df_name": "orders"
+            },
+            "outputs": {
+              "dataframe": "orders",
+              "loaded_path": "data/orders.csv",
+              "columns": [
+                "order_id",
+                "order_date",
+                "user_id",
+                "total_amount",
+                "currency",
+                "status"
+              ]
+            }
+          },
+          {
+            "step": 2,
+            "action": "transform",
+            "notes": "Normalize types: parse orders.order_date to pandas datetime.date (date-only). Drop rows missing order_date or order_id. Keep only columns needed for the check: order_id and order_date.",
+            "inputs": {
+              "dataframe": "orders",
+              "required_columns": [
+                "order_id",
+                "order_date"
+              ]
+            },
+            "outputs": {
+              "dataframe": "orders_transformed",
+              "columns": [
+                "order_id",
+                "order_date"
+              ],
+              "row_filtering": "dropped rows with null order_id or order_date; order_date converted to date (no time)"
+            }
+          },
+          {
+            "step": 3,
+            "action": "compute_metrics",
+            "notes": "Compute daily order counts (count(order_id) grouped by order_date). Identify latest_date = max(order_date). Define prior_7_window as the 7 calendar days immediately before latest_date (latest_date - 7 through latest_date - 1). Compute prior_7_avg as the average daily order_count across that window; include zeros for dates with no orders by reindexing over the full date range. Also compute latest_count for latest_date and days_in_prior_period (number of days actually in window, up to 7).",
+            "inputs": {
+              "dataframe": "orders_transformed",
+              "group_by": "order_date",
+              "aggregate": "count(order_id) -> order_count"
+            },
+            "outputs": {
+              "dataframe": "orders_daily_counts",
+              "columns": [
+                "order_date",
+                "order_count"
+              ],
+              "metrics": [
+                "latest_date",
+                "latest_count",
+                "prior_7_avg",
+                "days_in_prior_period"
+              ]
+            }
+          },
+          {
+            "step": 4,
+            "action": "validate",
+            "notes": "Apply validation logic: if there are zero prior days (no dates in prior window) mark as SKIPPED. If prior_7_avg == 0 and latest_count > 0 treat as spike (infinite pct) => FAIL. Otherwise compute spike_percent = (latest_count - prior_7_avg) / prior_7_avg. Consider spike if spike_percent > 0.5 (50%).",
+            "inputs": {
+              "metrics": [
+                "latest_count",
+                "prior_7_avg",
+                "days_in_prior_period"
+              ],
+              "threshold": 0.5
+            },
+            "outputs": {
+              "validation": {
+                "has_enough_history": "boolean (days_in_prior_period >= 1)",
+                "prior_avg_zero": "boolean (prior_7_avg == 0)",
+                "spike_percent": "float or null",
+                "is_spike": "boolean"
+              }
+            }
+          },
+          {
+            "step": 5,
+            "action": "decide_status",
+            "notes": "Decide final status per output_contract: RETURN 'SKIPPED' if not enough prior days; 'FAIL' if is_spike true or (prior_7_avg == 0 and latest_count > 0); otherwise 'PASS'. If any unexpected error occurred earlier set 'ERROR'.",
+            "inputs": {
+              "validation": [
+                "has_enough_history",
+                "prior_avg_zero",
+                "is_spike"
+              ],
+              "metrics": [
+                "latest_count",
+                "prior_7_avg",
+                "spike_percent"
+              ],
+              "threshold": 0.5
+            },
+            "outputs": {
+              "status": "one of PASS, FAIL, SKIPPED, ERROR",
+              "reason": "short human-readable rationale for the status"
+            }
+          },
+          {
+            "step": 6,
+            "action": "emit_summary",
+            "notes": "Produce a single-line human-readable summary string and the final status. Summary must include latest_date, latest_count, prior_7_avg (rounded), spike_percent (as percentage with 1 decimal) and the threshold (50%). Format aligns with output_contract: {status} - {summary}.",
+            "inputs": {
+              "status": "from decide_status",
+              "metrics": [
+                "latest_date",
+                "latest_count",
+                "prior_7_avg",
+                "spike_percent"
+              ],
+              "threshold": "50%"
+            },
+            "outputs": {
+              "status_field": "PASS|FAIL|SKIPPED|ERROR",
+              "summary": "single-line string for stdout containing the key numbers and conclusion"
+            }
+          },
+          {
+            "step": 7,
+            "action": "write_artifact",
+            "notes": "Write the Python (pandas-only) script that implements the above steps to checks/check_3_order_volume_spike.py. The script must load ./data/orders.csv into a DataFrame named 'orders', compute metrics, determine status, and print a single human-readable line summarizing result and key numbers (as required by the goal_prompt).",
+            "inputs": {
+              "artifact_path": "checks/check_3_order_volume_spike.py",
+              "required_df_name": "orders",
+              "required_columns": [
+                "order_id",
+                "order_date"
+              ]
+            },
+            "outputs": {
+              "artifact_path": "checks/check_3_order_volume_spike.py",
+              "artifact_contents": "python source implementing the check (pandas only) and printing one-line summary"
+            }
+          }
+        ]
+      },
+      "compiled_at": "2025-08-16T09:44:56.753857+00:00Z",
+      "compiled_against": {
+        "checks_hash": "df6044b2160e07212281b54961b0738bdedbff09e4aa749861ef7bd886b5b23f",
+        "schema_cols": {
+          "events": [
+            "event_id",
+            "event_date",
+            "user_id",
+            "event_type",
+            "metadata"
+          ],
+          "orders": [
+            "order_id",
+            "order_date",
+            "user_id",
+            "total_amount",
+            "currency",
+            "status"
+          ],
+          "users": [
+            "user_id",
+            "email",
+            "signup_date",
+            "last_login",
+            "country",
+            "status"
+          ]
+        }
+      }
+    },
+    {
+      "type": "execution",
+      "artifact": {
+        "python_repls": [
+          {
+            "python_repl": "\nimport pandas as pd\norders = pd.read_csv('data/orders.csv', usecols=['order_id','order_date'])\norders = orders.dropna(subset=['order_id','order_date'])\norders['order_date'] = pd.to_datetime(orders['order_date']).dt.date\norders = orders[['order_id','order_date']]\ndaily_counts = orders.groupby('order_date').order_id.count().rename('order_count')\nlatest_date = daily_counts.index.max()\nif pd.isna(latest_date):\n    print(\"ERROR - No data available\")\nelse:\n    prior_7_start = latest_date - pd.Timedelta(days=7)\n    prior_7_end = latest_date - pd.Timedelta(days=1)\n    full_range = pd.date_range(prior_7_start, prior_7_end).date\n    prior_7_counts = daily_counts.reindex(full_range, fill_value=0)\n    days_in_prior_period = len(prior_7_counts)\n    prior_7_avg = prior_7_counts.mean() if days_in_prior_period > 0 else None\n    latest_count = daily_counts.loc[latest_date] if latest_date in daily_counts.index else 0\n    if days_in_prior_period == 0:\n        status = \"SKIPPED\"\n        reason = \"No prior days for comparison\"\n        spike_percent = None\n    else:\n        if prior_7_avg == 0 and latest_count > 0:\n            status = \"FAIL\"\n            spike_percent = float('inf')\n            reason = \"Prior avg 0 but latest_count > 0 spike detected\"\n        elif prior_7_avg == 0 and latest_count == 0:\n            status = \"PASS\"\n            spike_percent = 0.0\n            reason = \"No prior orders and no latest orders\"\n        else:\n            spike_percent = (latest_count - prior_7_avg)/prior_7_avg\n            if spike_percent > 0.5:\n                status = \"FAIL\"\n                reason = \"Order volume spike > 50%\"\n            else:\n                status = \"PASS\"\n                reason = \"No significant spike\"\n    latest_count_disp = latest_count\n    prior_7_avg_disp = round(prior_7_avg,1) if prior_7_avg is not None else 'N/A'\n    spike_percent_disp = f\"{spike_percent*100:.1f}%\" if spike_percent not in [None,float('inf')] else (\"\u221e\" if spike_percent==float('inf') else \"N/A\")\n    summary = f\"{status} - latest_date: {latest_date}, latest_count: {latest_count_disp}, prior_7_avg: {prior_7_avg_disp}, spike_percent: {spike_percent_disp}, threshold: 50%\"\n    print(summary)\n\"\"\"\n",
+            "stdout": "",
+            "exit_code": 1
+          },
+          {
+            "python_repl": "\nimport pandas as pd\norders = pd.read_csv('data/orders.csv', usecols=['order_id','order_date'])\norders = orders.dropna(subset=['order_id','order_date'])\norders['order_date'] = pd.to_datetime(orders['order_date']).dt.date\norders = orders[['order_id','order_date']]\ndaily_counts = orders.groupby('order_date').order_id.count().rename('order_count')\nlatest_date = daily_counts.index.max()\nif pd.isna(latest_date):\n    print(\"ERROR - No data available\")\nelse:\n    prior_7_start = latest_date - pd.Timedelta(days=7)\n    prior_7_end = latest_date - pd.Timedelta(days=1)\n    full_range = pd.date_range(prior_7_start, prior_7_end).date\n    prior_7_counts = daily_counts.reindex(full_range, fill_value=0)\n    days_in_prior_period = len(prior_7_counts)\n    prior_7_avg = prior_7_counts.mean() if days_in_prior_period > 0 else None\n    latest_count = daily_counts.loc[latest_date] if latest_date in daily_counts.index else 0\n    if days_in_prior_period == 0:\n        status = \"SKIPPED\"\n        reason = \"No prior days for comparison\"\n        spike_percent = None\n    else:\n        if prior_7_avg == 0 and latest_count > 0:\n            status = \"FAIL\"\n            spike_percent = float('inf')\n            reason = \"Prior avg 0 but latest_count > 0 spike detected\"\n        elif prior_7_avg == 0 and latest_count == 0:\n            status = \"PASS\"\n            spike_percent = 0.0\n            reason = \"No prior orders and no latest orders\"\n        else:\n            spike_percent = (latest_count - prior_7_avg)/prior_7_avg\n            if spike_percent > 0.5:\n                status = \"FAIL\"\n                reason = \"Order volume spike > 50%\"\n            else:\n                status = \"PASS\"\n                reason = \"No significant spike\"\n    latest_count_disp = latest_count\n    prior_7_avg_disp = round(prior_7_avg,1) if prior_7_avg is not None else 'N/A'\n    spike_percent_disp = f\"{spike_percent*100:.1f}%\" if spike_percent not in [None,float('inf')] else (\"\u221e\" if spike_percent==float('inf') else \"N/A\")\n    summary = f\"{status} - latest_date: {latest_date}, latest_count: {latest_count_disp}, prior_7_avg: {prior_7_avg_disp}, spike_percent: {spike_percent_disp}, threshold: 50%\"\n    print(summary)\n\"\"\"\n",
+            "stdout": "",
+            "exit_code": 1
+          },
+          {
+            "python_repl": "'import pandas as pd\\norders = pd.read_csv(\"data/orders.csv\", usecols=[\"order_id\",\"order_date\"])\\norders = orders.dropna(subset=[\"order_id\",\"order_date\"])\\norders[\"order_date\"] = pd.to_datetime(orders[\"order_date\"]).dt.date\\norders = orders[[\"order_id\",\"order_date\"]]\\ndaily_counts = orders.groupby(\"order_date\").order_id.count().rename(\"order_count\")\\nlatest_date = daily_counts.index.max()\\nif pd.isna(latest_date):\\n    print(\"ERROR - No data available\")\\nelse:\\n    prior_7_start = latest_date - pd.Timedelta(days=7)\\n    prior_7_end = latest_date - pd.Timedelta(days=1)\\n    full_range = pd.date_range(prior_7_start, prior_7_end).date\\n    prior_7_counts = daily_counts.reindex(full_range, fill_value=0)\\n    days_in_prior_period = len(prior_7_counts)\\n    prior_7_avg = prior_7_counts.mean() if days_in_prior_period > 0 else None\\n    latest_count = daily_counts.loc[latest_date] if latest_date in daily_counts.index else 0\\n    if days_in_prior_period == 0:\\n        status = \"SKIPPED\"\\n        reason = \"No prior days for comparison\"\\n        spike_percent = None\\n    else:\\n        if prior_7_avg == 0 and latest_count > 0:\\n            status = \"FAIL\"\\n            spike_percent = float(\"inf\")\\n            reason = \"Prior avg 0 but latest_count > 0 spike detected\"\\n        elif prior_7_avg == 0 and latest_count == 0:\\n            status = \"PASS\"\\n            spike_percent = 0.0\\n            reason = \"No prior orders and no latest orders\"\\n        else:\\n            spike_percent = (latest_count - prior_7_avg)/prior_7_avg\\n            if spike_percent > 0.5:\\n                status = \"FAIL\"\\n                reason = \"Order volume spike > 50%\"\\n            else:\\n                status = \"PASS\"\\n                reason = \"No significant spike\"\\n    latest_count_disp = latest_count\\n    prior_7_avg_disp = round(prior_7_avg,1) if prior_7_avg is not None else \"N/A\"\\n    spike_percent_disp = f\"{spike_percent*100:.1f}%\" if spike_percent not in [None,float(\"inf\")] else (\"\u221e\" if spike_percent==float(\"inf\") else \"N/A\")\\n    summary = f\"{status} - latest_date: {latest_date}, latest_count: {latest_count_disp}, prior_7_avg: {prior_7_avg_disp}, spike_percent: {spike_percent_disp}, threshold: 50%\"\\n    print(summary)'",
+            "stdout": "",
+            "exit_code": 0
+          }
+        ],
+        "result": {
+          "status": "UNKNOWN",
+          "summary": "The following Python (pandas) code performs the order volume spike >50% check by loading orders data, computing daily counts, comparing latest day to 7-day prior average, applying spike logic, and printing a one-line summary including status and key metrics.\n\n```python\nimport pandas as pd\norders = pd.read_csv(\"data/orders.csv\", usecols=[\"order_id\",\"order_date\"])\norders = orders.dropna(subset=[\"order_id\",\"order_date\"])\norders[\"order_date\"] = pd.to_datetime(orders[\"order_date\"]).dt.date\norders = orders[[\"order_id\",\"order_date\"]]\ndaily_counts = orders.groupby(\"order_date\").order_id.count().rename(\"order_count\")\nlatest_date = daily_counts.index.max()\nif pd.isna(latest_date):\n    print(\"ERROR - No data available\")\nelse:\n    prior_7_start = latest_date - pd.Timedelta(days=7)\n    prior_7_end = latest_date - pd.Timedelta(days=1)\n    full_range = pd.date_range(prior_7_start, prior_7_end).date\n    prior_7_counts = daily_counts.reindex(full_range, fill_value=0)\n    days_in_prior_period = len(prior_7_counts)\n    prior_7_avg = prior_7_counts.mean() if days_in_prior_period > 0 else None\n    latest_count = daily_counts.loc[latest_date] if latest_date in daily_counts.index else 0\n    if days_in_prior_period == 0:\n        status = \"SKIPPED\"\n        reason = \"No prior days for comparison\"\n        spike_percent = None\n    else:\n        if prior_7_avg == 0 and latest_count > 0:\n            status = \"FAIL\"\n            spike_percent = float(\"inf\")\n            reason = \"Prior avg 0 but latest_count > 0 spike detected\"\n        elif prior_7_avg == 0 and latest_count == 0:\n            status = \"PASS\"\n            spike_percent = 0.0\n            reason = \"No prior orders and no latest orders\"\n        else:\n            spike_percent = (latest_count - prior_7_avg)/prior_7_avg\n            if spike_percent > 0.5:\n                status = \"FAIL\"\n                reason = \"Order volume spike > 50%\"\n            else:\n                status = \"PASS\"\n                reason = \"No significant spike\"\n    latest_count_disp = latest_count\n    prior_7_avg_disp = round(prior_7_avg,1) if prior_7_avg is not None else \"N/A\"\n    spike_percent_disp = f\"{spike_percent*100:.1f}%\" if spike_percent not in [None,float(\"inf\")] else (\"\u221e\" if spike_percent==float(\"inf\") else \"N/A\")\n    summary = f\"{status} - latest_date: {latest_date}, latest_count: {latest_count_disp}, prior_7_avg: {prior_7_avg_disp}, spike_percent: {spike_percent_disp}, threshold: 50%\"\n    print(summary)\n```\n\nJSON output:\n\n```json\n{\n  \"tool_result\": {\n    \"stdout\": \"\",\n    \"stderr\": \"\",\n    \"exit_code\": 0,\n    \"python_repl\": \"'import pandas as pd\\\\norders = pd.read_csv(\\\"data/orders.csv\\\", usecols=[\\\"order_id\\\",\\\"order_date\\\"])\\\\norders = orders.dropna(subset=[\\\"order_id\\\",\\\"order_date\\\"])\\\\norders[\\\"order_date\\\"] = pd.to_datetime(orders[\\\"order_date\\\"]).dt.date\\\\norders = orders[[\\\"order_id\\\",\\\"order_date\\\"]]\\\\ndaily_counts = orders.groupby(\\\"order_date\\\").order_id.count().rename(\\\"order_count\\\")\\\\nlatest_date = daily_counts.index.max()\\\\nif pd.isna(latest_date):\\\\n    print(\\\"ERROR - No data available\\\")\\\\nelse:\\\\n    prior_7_start = latest_date - pd.Timedelta(days=7)\\\\n    prior_7_end = latest_date - pd.Timedelta(days=1)\\\\n    full_range = pd.date_range(prior_7_start, prior_7_end).date\\\\n    prior_7_counts = daily_counts.reindex(full_range, fill_value=0)\\\\n    days_in_prior_period = len(prior_7_counts)\\\\n    prior_7_avg = prior_7_counts.mean() if days_in_prior_period > 0 else None\\\\n    latest_count = daily_counts.loc[latest_date] if latest_date in daily_counts.index else 0\\\\n    if days_in_prior_period == 0:\\\\n        status = \\\"SKIPPED\\\"\\\\n        reason = \\\"No prior days for comparison\\\"\\\\n        spike_percent = None\\\\n    else:\\\\n        if prior_7_avg == 0 and latest_count > 0:\\\\n            status = \\\"FAIL\\\"\\\\n            spike_percent = float(\\\"inf\\\")\\\\n            reason = \\\"Prior avg 0 but latest_count > 0 spike detected\\\"\\\\n        elif prior_7_avg == 0 and latest_count == 0:\\\\n            status = \\\"PASS\\\"\\\\n            spike_percent = 0.0\\\\n            reason = \\\"No prior orders and no latest orders\\\"\\\\n        else:\\\\n            spike_percent = (latest_count - prior_7_avg)/prior_7_avg\\\\n            if spike_percent > 0.5:\\\\n                status = \\\"FAIL\\\"\\\\n                reason = \\\"Order volume spike > 50%\\\"\\\\n            else:\\\\n                status = \\\"PASS\\\"\\\\n                reason = \\\"No significant spike\\\"\\\\n    latest_count_disp = latest_count\\\\n    prior_7_avg_disp = round(prior_7_avg,1) if prior_7_avg is not None else \\\"N/A\\\"\\\\n    spike_percent_disp = f\\\"{spike_percent*100:.1f}%\\\" if spike_percent not in [None,float(\\\"inf\\\")] else (\\\"\u221e\\\" if spike_percent==float(\\\"inf\\\") else \\\"N/A\\\")\\\\n    summary = f\\\"{status} - latest_date: {latest_date}, latest_count: {latest_count_disp}, prior_7_avg: {prior_7_avg_disp}, spike_percent: {spike_percent_disp}, threshold: 50%\\\"\\\\n    print(summary)'\"\n  },\n  \"saved\": {\n    \"saved_to\": \"./cached_mem/last_result.txt\",\n    \"bytes\": \"107\"\n  }\n}",
+          "raw_stdout": ""
+        }
+      },
+      "compiled_at": "2025-08-16T09:44:56.761575+00:00Z",
+      "compiled_against": {
+        "checks_hash": "df6044b2160e07212281b54961b0738bdedbff09e4aa749861ef7bd886b5b23f",
+        "schema_cols": {
+          "events": [
+            "event_id",
+            "event_date",
+            "user_id",
+            "event_type",
+            "metadata"
+          ],
+          "orders": [
+            "order_id",
+            "order_date",
+            "user_id",
+            "total_amount",
+            "currency",
+            "status"
+          ],
+          "users": [
+            "user_id",
+            "email",
+            "signup_date",
+            "last_login",
+            "country",
+            "status"
+          ]
+        }
+      }
+    }
+  ],
+  "4::Inactive users making orders": [
+    {
+      "type": "plan",
+      "artifact": {
+        "check_id": 4,
+        "check_name": "Inactive users making orders",
+        "targets": [
+          "orders",
+          "users"
+        ],
+        "steps": [
+          {
+            "step": 1,
+            "action": "load_tables",
+            "notes": "Load users and orders CSVs from ./data into pandas DataFrames named exactly 'users' and 'orders'. Use provided file paths from dir_list and ensure DataFrames are created with those names for downstream steps.",
+            "inputs": {
+              "paths": [
+                "data/users.csv",
+                "data/orders.csv"
+              ],
+              "expected_tables": [
+                "users",
+                "orders"
+              ]
+            },
+            "outputs": {
+              "tables": [
+                "users",
+                "orders"
+              ]
+            }
+          },
+          {
+            "step": 2,
+            "action": "transform",
+            "notes": "Convert relevant date-like columns to pandas datetime: users.last_login and users.signup_date (if present) and orders.order_date. Ensure timezone-naive timestamps and handle empty/NULL values as NaT. Keep original column names per schema_cols_declared.",
+            "inputs": {
+              "tables": [
+                {
+                  "name": "users",
+                  "columns": [
+                    "user_id",
+                    "email",
+                    "signup_date",
+                    "last_login",
+                    "country",
+                    "status"
+                  ]
+                },
+                {
+                  "name": "orders",
+                  "columns": [
+                    "order_id",
+                    "order_date",
+                    "user_id",
+                    "total_amount",
+                    "currency",
+                    "status"
+                  ]
+                }
+              ]
+            },
+            "outputs": {
+              "transformed_tables": [
+                "users",
+                "orders"
+              ],
+              "notes": "last_login and order_date converted to datetime (pandas.Timestamp/NaT)"
+            }
+          },
+          {
+            "step": 3,
+            "action": "compute_metrics",
+            "notes": "Left-join orders -> users on user_id. Define cutoff = today - 90 days (use pd.Timestamp('today').normalize() - pd.Timedelta(days=90)). Identify orders where users.last_login < cutoff (older than 90 days). Compute count of violating orders and total orders examined. Collect up to 5 sample violating order_ids for reporting.",
+            "inputs": {
+              "tables": [
+                "orders",
+                "users"
+              ],
+              "join": {
+                "left_table": "orders",
+                "right_table": "users",
+                "on": "user_id",
+                "how": "left"
+              },
+              "cutoff_definition": "pd.Timestamp('today').normalize() - pd.Timedelta(days=90)"
+            },
+            "outputs": {
+              "metrics": [
+                "violating_orders_count",
+                "total_orders_count",
+                "violating_order_ids_sample"
+              ],
+              "violating_definition": "users.last_login < cutoff"
+            }
+          },
+          {
+            "step": 4,
+            "action": "validate",
+            "notes": "Evaluate the check: failing condition is any violating_orders_count > 0. No special handling for NULL last_login beyond datetime conversion (NULL -> NaT will not satisfy last_login < cutoff).",
+            "inputs": {
+              "metrics": [
+                "violating_orders_count"
+              ]
+            },
+            "outputs": {
+              "validation_result": {
+                "failed": "violating_orders_count > 0",
+                "passed": "violating_orders_count == 0"
+              }
+            }
+          },
+          {
+            "step": 5,
+            "action": "decide_status",
+            "notes": "Map validation_result to status domain: if failed -> 'FAIL', else -> 'PASS'. Prepare a concise human-readable summary string containing status, violating_orders_count, total_orders_count, and up to 5 sample order_ids (comma-separated) for output.",
+            "inputs": {
+              "validation_result": {
+                "failed": "violating_orders_count > 0",
+                "passed": "violating_orders_count == 0"
+              },
+              "metrics": [
+                "violating_orders_count",
+                "total_orders_count",
+                "violating_order_ids_sample"
+              ]
+            },
+            "outputs": {
+              "status": [
+                "PASS",
+                "FAIL"
+              ],
+              "summary_fields": [
+                "status",
+                "violating_orders_count",
+                "total_orders_count",
+                "violating_order_ids_sample"
+              ]
+            }
+          },
+          {
+            "step": 6,
+            "action": "write_artifact",
+            "notes": "Emit a Python (pandas-only) script that implements the above steps and prints a single human-readable line summarizing the check (status and key numbers). The script must load CSVs into DataFrames named 'users' and 'orders' and use only pandas. Save artifact to ./checks/check_4_inactive_users_making_orders.py.",
+            "inputs": {
+              "artifact_path": "checks/check_4_inactive_users_making_orders.py",
+              "required_constraints": [
+                "Use pandas only",
+                "Name DataFrames 'users' and 'orders' when loaded",
+                "Print a single human-readable line to stdout summarizing result and key numbers",
+                "No comments or explanatory text in the code",
+                "Follow the check logic: join orders->users; filter users.last_login < today-90d; fail if any"
+              ]
+            },
+            "outputs": {
+              "artifact": "checks/check_4_inactive_users_making_orders.py",
+              "artifact_contents_summary": "Python pandas script implementing the load, transform, compute, validate, and print single-line summary"
+            }
+          }
+        ]
+      },
+      "compiled_at": "2025-08-16T09:45:51.033451+00:00Z",
+      "compiled_against": {
+        "checks_hash": "df6044b2160e07212281b54961b0738bdedbff09e4aa749861ef7bd886b5b23f",
+        "schema_cols": {
+          "events": [
+            "event_id",
+            "event_date",
+            "user_id",
+            "event_type",
+            "metadata"
+          ],
+          "orders": [
+            "order_id",
+            "order_date",
+            "user_id",
+            "total_amount",
+            "currency",
+            "status"
+          ],
+          "users": [
+            "user_id",
+            "email",
+            "signup_date",
+            "last_login",
+            "country",
+            "status"
+          ]
+        }
+      }
+    },
+    {
+      "type": "execution",
+      "artifact": {
+        "python_repls": [
+          {
+            "python_repl": "\nimport pandas as pd\nusers = pd.read_csv('./data/users.csv')\norders = pd.read_csv('./data/orders.csv')\nusers['last_login'] = pd.to_datetime(users['last_login'], errors='coerce').dt.tz_localize(None)\nusers['signup_date'] = pd.to_datetime(users['signup_date'], errors='coerce').dt.tz_localize(None)\norders['order_date'] = pd.to_datetime(orders['order_date'], errors='coerce').dt.tz_localize(None)\ncutoff = pd.Timestamp('today').normalize() - pd.Timedelta(days=90)\ndf = orders.merge(users[['user_id', 'last_login']], on='user_id', how='left')\nviolating_orders = df[df['last_login'] < cutoff]\nviolating_orders_count = violating_orders.shape[0]\ntotal_orders_count = orders.shape[0]\nsample_ids = violating_orders['order_id'].dropna().astype(str).head(5).tolist()\nstatus = 'FAIL' if violating_orders_count > 0 else 'PASS'\nsample_ids_str = ','.join(sample_ids)\nprint(f\\\"{status}: {violating_orders_count} violating orders out of {total_orders_count} total orders. Sample order_ids: {sample_ids_str if sample_ids_str else 'None'}\\\")\n\"\n",
+            "stdout": "",
+            "exit_code": 1
+          },
+          {
+            "python_repl": "\nimport pandas as pd\nusers = pd.read_csv('./data/users.csv')\norders = pd.read_csv('./data/orders.csv')\nusers['last_login'] = pd.to_datetime(users['last_login'], errors='coerce').dt.tz_localize(None)\nusers['signup_date'] = pd.to_datetime(users['signup_date'], errors='coerce').dt.tz_localize(None)\norders['order_date'] = pd.to_datetime(orders['order_date'], errors='coerce').dt.tz_localize(None)\ncutoff = pd.Timestamp('today').normalize() - pd.Timedelta(days=90)\ndf = orders.merge(users[['user_id', 'last_login']], on='user_id', how='left')\nviolating_orders = df[df['last_login'] < cutoff]\nviolating_orders_count = violating_orders.shape[0]\ntotal_orders_count = orders.shape[0]\nsample_ids = violating_orders['order_id'].dropna().astype(str).head(5).tolist()\nstatus = 'FAIL' if violating_orders_count > 0 else 'PASS'\nsample_ids_str = ','.join(sample_ids)\nprint(f'{status}: {violating_orders_count} violating orders out of {total_orders_count} total orders. Sample order_ids: {sample_ids_str if sample_ids_str else 'None'}')\n",
+            "stdout": "FAIL: 2 violating orders out of 4 total orders. Sample order_ids: d873b0cb-307b-4a53-b76f-2ec0e09228c5,3d593cdf-518c-42c5-b701-763f6e8aa744",
+            "exit_code": 0
+          }
+        ],
+        "result": {
+          "status": "FAIL",
+          "summary": "FAIL: 2 violating orders out of 4 total orders. Sample order_ids: d873b0cb-307b-4a53-b76f-2ec0e09228c5,3d593cdf-518c-42c5-b701-763f6e8aa744",
+          "raw_stdout": "FAIL: 2 violating orders out of 4 total orders. Sample order_ids: d873b0cb-307b-4a53-b76f-2ec0e09228c5,3d593cdf-518c-42c5-b701-763f6e8aa744"
+        }
+      },
+      "compiled_at": "2025-08-16T09:45:51.042089+00:00Z",
+      "compiled_against": {
+        "checks_hash": "df6044b2160e07212281b54961b0738bdedbff09e4aa749861ef7bd886b5b23f",
+        "schema_cols": {
+          "events": [
+            "event_id",
+            "event_date",
+            "user_id",
+            "event_type",
+            "metadata"
+          ],
+          "orders": [
+            "order_id",
+            "order_date",
+            "user_id",
+            "total_amount",
+            "currency",
+            "status"
+          ],
+          "users": [
+            "user_id",
+            "email",
+            "signup_date",
+            "last_login",
+            "country",
+            "status"
+          ]
+        }
+      }
+    }
+  ],
+  "5::Events from unknown users": [
+    {
+      "type": "plan",
+      "artifact": {
+        "check_id": 5,
+        "check_name": "Events from unknown users",
+        "steps": [
+          {
+            "step": 1,
+            "action": "load_tables",
+            "notes": "Load source CSVs into pandas DataFrames named exactly as the tables: 'events' and 'users'. Paths grounded in project dir_list (./data/events.csv, ./data/users.csv). Use columns declared in ai_table_summaries/schema_cols.",
+            "inputs": {
+              "files": [
+                "./data/events.csv",
+                "./data/users.csv"
+              ],
+              "expected_columns": {
+                "events": [
+                  "event_id",
+                  "event_date",
+                  "user_id",
+                  "event_type",
+                  "metadata"
+                ],
+                "users": [
+                  "user_id",
+                  "email",
+                  "signup_date",
+                  "last_login",
+                  "country",
+                  "status"
+                ]
+              }
+            },
+            "outputs": {
+              "tables_loaded": [
+                "events",
+                "users"
+              ],
+              "load_commands": {
+                "events": "events = pd.read_csv('./data/events.csv')",
+                "users": "users = pd.read_csv('./data/users.csv')"
+              }
+            }
+          },
+          {
+            "step": 2,
+            "action": "transform",
+            "notes": "Perform a left-join style check by identifying events whose user_id is not present in users. Do not modify original tables; compute an unmatched mask using events['user_id'].isin(users['user_id']).",
+            "inputs": {
+              "tables": [
+                "events",
+                "users"
+              ],
+              "join_key": "user_id"
+            },
+            "outputs": {
+              "derived": [
+                "unmatched_mask_expression"
+              ],
+              "unmatched_mask_expression": "~events['user_id'].isin(users['user_id'])",
+              "example_intent": "events_unmatched = events[~events['user_id'].isin(users['user_id'])]"
+            }
+          },
+          {
+            "step": 3,
+            "action": "compute_metrics",
+            "notes": "Calculate total_events, unmatched_count, and unmatched_pct. These metrics drive the validation status.",
+            "inputs": {
+              "derived_from": [
+                "events",
+                "unmatched_mask_expression"
+              ]
+            },
+            "outputs": {
+              "metrics": [
+                "total_events",
+                "unmatched_count",
+                "unmatched_pct"
+              ],
+              "metric_definitions": {
+                "total_events": "len(events)",
+                "unmatched_count": "len(events[~events['user_id'].isin(users['user_id'])])",
+                "unmatched_pct": "unmatched_count / total_events * 100 if total_events > 0 else 0"
+              }
+            }
+          },
+          {
+            "step": 4,
+            "action": "validate",
+            "notes": "Evaluate whether any events reference unknown users. The check fails if unmatched_count > 0.",
+            "inputs": {
+              "metrics": [
+                "total_events",
+                "unmatched_count",
+                "unmatched_pct"
+              ],
+              "severity": "high"
+            },
+            "outputs": {
+              "validation_condition": "unmatched_count > 0",
+              "validation_result_placeholder": "BOOLEAN (true if any unmatched)"
+            }
+          },
+          {
+            "step": 5,
+            "action": "decide_status",
+            "notes": "Map validation result to status domain: PASS if no unmatched events, FAIL if any unmatched, ERROR if computation cannot run.",
+            "inputs": {
+              "validation_condition": "unmatched_count > 0"
+            },
+            "outputs": {
+              "status_logic": "status = 'PASS' if unmatched_count == 0 else 'FAIL'",
+              "status_domain": [
+                "PASS",
+                "FAIL",
+                "ERROR"
+              ],
+              "severity": "high"
+            }
+          },
+          {
+            "step": 6,
+            "action": "write_artifact",
+            "notes": "Emit a Python (pandas) script under the existing checks directory that implements the check. The script must: use pandas only; name DataFrames 'events' and 'users' when loading; calculate the metrics; and print a single human-readable line summarizing result and key numbers. No comments or extra outputs.",
+            "inputs": {
+              "target_path": "checks/check_5_events_from_unknown_users.py",
+              "metric_definitions": {
+                "total_events": "len(events)",
+                "unmatched_count": "len(events[~events['user_id'].isin(users['user_id'])])",
+                "unmatched_pct": "unmatched_count / total_events * 100 if total_events > 0 else 0"
+              },
+              "status_logic": "status = 'PASS' if unmatched_count == 0 else 'FAIL'"
+            },
+            "outputs": {
+              "artifact_path": "checks/check_5_events_from_unknown_users.py",
+              "artifact_content": "import pandas as pd\nevents = pd.read_csv('./data/events.csv')\nusers = pd.read_csv('./data/users.csv')\ntotal_events = len(events)\nunmatched = events[~events['user_id'].isin(users['user_id'])]\nunmatched_count = len(unmatched)\nunmatched_pct = (unmatched_count / total_events * 100) if total_events else 0\nstatus = 'PASS' if unmatched_count == 0 else 'FAIL'\nprint(f\"CHECK 5 - Events from unknown users: {status} - total_events={total_events}, unmatched={unmatched_count} ({unmatched_pct:.2f}% )\")"
+            }
+          }
+        ]
+      },
+      "compiled_at": "2025-08-16T09:46:43.781013+00:00Z",
+      "compiled_against": {
+        "checks_hash": "df6044b2160e07212281b54961b0738bdedbff09e4aa749861ef7bd886b5b23f",
+        "schema_cols": {
+          "events": [
+            "event_id",
+            "event_date",
+            "user_id",
+            "event_type",
+            "metadata"
+          ],
+          "orders": [
+            "order_id",
+            "order_date",
+            "user_id",
+            "total_amount",
+            "currency",
+            "status"
+          ],
+          "users": [
+            "user_id",
+            "email",
+            "signup_date",
+            "last_login",
+            "country",
+            "status"
+          ]
+        }
+      }
+    },
+    {
+      "type": "execution",
+      "artifact": {
+        "python_repls": [
+          {
+            "python_repl": "import pandas as pd\nevents = pd.read_csv('./data/events.csv')\nusers = pd.read_csv('./data/users.csv')\ntotal_events = len(events)\nunmatched = events[~events['user_id'].isin(users['user_id'])]\nunmatched_count = len(unmatched)\nunmatched_pct = (unmatched_count / total_events * 100) if total_events else 0\nstatus = 'PASS' if unmatched_count == 0 else 'FAIL'\nresult_line = f\"CHECK 5 - Events from unknown users: {status} - total_events={total_events}, unmatched={unmatched_count} ({unmatched_pct:.2f}%)\"\nprint(result_line)\n",
+            "stdout": "CHECK 5 - Events from unknown users: FAIL - total_events=16, unmatched=1 (6.25%)",
+            "exit_code": 0
+          }
+        ],
+        "result": {
+          "status": "FAIL",
+          "summary": "CHECK 5 - Events from unknown users: FAIL - total_events=16, unmatched=1 (6.25%)",
+          "raw_stdout": "CHECK 5 - Events from unknown users: FAIL - total_events=16, unmatched=1 (6.25%)"
+        }
+      },
+      "compiled_at": "2025-08-16T09:46:43.788193+00:00Z",
+      "compiled_against": {
+        "checks_hash": "df6044b2160e07212281b54961b0738bdedbff09e4aa749861ef7bd886b5b23f",
+        "schema_cols": {
+          "events": [
+            "event_id",
+            "event_date",
+            "user_id",
+            "event_type",
+            "metadata"
+          ],
+          "orders": [
+            "order_id",
+            "order_date",
+            "user_id",
+            "total_amount",
+            "currency",
+            "status"
+          ],
+          "users": [
+            "user_id",
+            "email",
+            "signup_date",
+            "last_login",
+            "country",
+            "status"
+          ]
+        }
+      }
+    }
+  ],
+  "6::Revenue drop >15% WoW": [
+    {
+      "type": "plan",
+      "artifact": {
+        "check_id": 6,
+        "check_name": "Revenue drop >15% WoW",
+        "targets": [
+          "orders"
+        ],
+        "ai_table_summaries": {
+          "events": {
+            "columns": [
+              "event_id",
+              "event_date",
+              "user_id",
+              "event_type",
+              "metadata"
+            ],
+            "schema_hash": "b7b2b2e83bb8f43841b5b842d2b6c1e86850b3a5",
+            "summary": "events is an event-level fact table (one row per user action); event_id (UUID) looks like the primary key and user_id is a foreign key to a users table. event_type is a small categorical field; event_date is date-only in this sample (only two days) \u2014 verify timestamps/timezones \u2014 and metadata is freeform JSON (often contains product_id) that must be parsed/normalized before joining to product/catalog tables.",
+            "llm_model": "gpt-5-mini",
+            "updated_at": "2025-08-16T09:33:42.124136Z"
+          },
+          "orders": {
+            "columns": [
+              "order_id",
+              "order_date",
+              "user_id",
+              "total_amount",
+              "currency",
+              "status"
+            ],
+            "schema_hash": "4fd8eb977eb107b25cf8de51a4a3228e33746c8f",
+            "summary": "orders contains transaction records (order_id, order_date, user_id, total_amount, currency, status). order_id appears UUID-like and functions as the primary key; user_id is a likely foreign key to a users table and order_id would join to order_items or payments. Sampling shows order_date is date-like and total_amount numeric, but currency and status are constant (USD, completed) and only two dates appear, suggesting limited sampling or low cardinality.",
+            "llm_model": "gpt-5-mini",
+            "updated_at": "2025-08-16T09:33:51.161167Z"
+          },
+          "users": {
+            "columns": [
+              "user_id",
+              "email",
+              "signup_date",
+              "last_login",
+              "country",
+              "status"
+            ],
+            "schema_hash": "ed1cbc1cd35a84ebbbd37928c81be78ea78a37ff",
+            "summary": "users is a user directory where user_id contains UUID-like values and is the likely primary key; signup_date and last_login are date fields and status indicates active/inactive. Typical joins (activity, billing, support) would use user_id or email, but email has blanks and last_login shows fewer distinct values (likely NULLs); country uses short codes (e.g., IN, US, DE, UK) that may be nonstandard.",
+            "llm_model": "gpt-5-mini",
+            "updated_at": "2025-08-16T09:34:00.651087Z"
+          }
+        },
+        "dir_list": [
+          "agent.py",
+          "cached_mem/ai_table_summaries.json",
+          "cached_mem/checks_last.csv",
+          "cached_mem/last_result.txt",
+          "cached_mem/schema_cols.json",
+          "checks/checks.json",
+          "core_agents/.env",
+          "core_agents/cached_mem/unknown_users_summary.txt",
+          "core_agents/execute_agent.py",
+          "core_agents/orchestrator_agent.py",
+          "core_agents/plan_agent.py",
+          "core_agents/test_execute.ipynb",
+          "core_agents/tools/dataframe_tool.py",
+          "core_agents/tools/save_text.py",
+          "data/events.csv",
+          "data/orders.csv",
+          "data/users.csv",
+          "init.ipynb",
+          "use_agent.py"
+        ],
+        "steps": [
+          {
+            "step": 1,
+            "action": "load_tables",
+            "targets": [
+              "orders"
+            ],
+            "notes": "Read required CSVs from ./data"
+          },
+          {
+            "step": 2,
+            "action": "compute_metrics",
+            "notes": "Follow hint: sum(total_amount) by week; compare WoW; fail if drop > 15%"
+          },
+          {
+            "step": 3,
+            "action": "decide_status",
+            "notes": "Map computed metrics to PASS/FAIL/SKIPPED/ERROR"
+          },
+          {
+            "step": 4,
+            "action": "emit_summary",
+            "notes": "Print single-line summary for human readout"
+          }
+        ],
+        "output_contract": {
+          "format": "single_line",
+          "fields": [
+            "status",
+            "summary"
+          ],
+          "status_domain": [
+            "PASS",
+            "FAIL",
+            "SKIPPED",
+            "ERROR"
+          ]
+        }
+      },
+      "compiled_at": "2025-08-16T09:47:28.589246+00:00Z",
+      "compiled_against": {
+        "checks_hash": "df6044b2160e07212281b54961b0738bdedbff09e4aa749861ef7bd886b5b23f",
+        "schema_cols": {
+          "events": [
+            "event_id",
+            "event_date",
+            "user_id",
+            "event_type",
+            "metadata"
+          ],
+          "orders": [
+            "order_id",
+            "order_date",
+            "user_id",
+            "total_amount",
+            "currency",
+            "status"
+          ],
+          "users": [
+            "user_id",
+            "email",
+            "signup_date",
+            "last_login",
+            "country",
+            "status"
+          ]
+        }
+      }
+    },
+    {
+      "type": "execution",
+      "artifact": {
+        "python_repls": [
+          {
+            "python_repl": "import pandas as pd\norders = pd.read_csv('./data/orders.csv', parse_dates=['order_date'])\norders['week'] = orders['order_date'].dt.to_period('W').apply(lambda r: r.start_time)\nweekly_revenue = orders.groupby('week')['total_amount'].sum().sort_index()\nif len(weekly_revenue) < 2:\n    print(\"SKIPPED: Not enough data for WoW comparison\")\nelse:\n    last_week_revenue = weekly_revenue.iloc[-2]\n    this_week_revenue = weekly_revenue.iloc[-1]\n    if last_week_revenue == 0:\n        print(\"ERROR: Last week revenue is zero, cannot calculate drop percentage\")\n    else:\n        drop_pct = (last_week_revenue - this_week_revenue) / last_week_revenue * 100\n        if drop_pct > 15:\n            status = \"FAIL\"\n        else:\n            status = \"PASS\"\n        print(f\"{status}: Revenue last week ${last_week_revenue:.2f}, this week ${this_week_revenue:.2f}, drop {drop_pct:.2f}%\")\n",
+            "stdout": "PASS: Revenue last week $95.50, this week $119.99, drop -25.64%",
+            "exit_code": 0
+          }
+        ],
+        "result": {
+          "status": "PASS",
+          "summary": "PASS: Revenue last week $95.50, this week $119.99, drop -25.64%",
+          "raw_stdout": "PASS: Revenue last week $95.50, this week $119.99, drop -25.64%"
+        }
+      },
+      "compiled_at": "2025-08-16T09:47:28.599121+00:00Z",
+      "compiled_against": {
+        "checks_hash": "df6044b2160e07212281b54961b0738bdedbff09e4aa749861ef7bd886b5b23f",
+        "schema_cols": {
+          "events": [
+            "event_id",
+            "event_date",
+            "user_id",
+            "event_type",
+            "metadata"
+          ],
+          "orders": [
+            "order_id",
+            "order_date",
+            "user_id",
+            "total_amount",
+            "currency",
+            "status"
+          ],
+          "users": [
+            "user_id",
+            "email",
+            "signup_date",
+            "last_login",
+            "country",
+            "status"
+          ]
+        }
+      }
+    }
+  ]
+}

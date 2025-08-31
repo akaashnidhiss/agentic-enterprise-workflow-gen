@@ -1,0 +1,9 @@
+user_id,email,signup_date,last_login,country,status
+3bdf9424-5d15-49dd-a61c-e7fc860f6b54,a@example.com,2024-10-19,2025-08-14,IN,active
+cb522ef3-bf3a-46e7-8f1a-668596c89738,b@example.com,2025-01-27,2025-08-13,US,active
+80c37de8-7b77-4917-88b3-ad27e749effc,,2025-03-18,2025-04-17,IN,inactive
+5aad13bc-9b1d-4927-852b-e721fb41dc3c,d@example.com,2025-05-07,2025-05-12,DE,active
+15503b7d-39d6-45ee-92d1-72fa01d1b8c4,e@example.com,2025-06-26,2025-08-10,IN,active
+b3911f3b-1e5f-4cc1-a8ae-3ebca33065a2,f@example.com,,2025-08-14,IN,active
+fcfb1f04-1777-4ac9-9288-fa5b2117218a,g@example.com,2023-09-15,2024-07-11,UK,inactive
+7abc3b95-d33d-4715-bca8-8524e095a92f,h@example.com,2025-07-26,2025-08-05,IN,active

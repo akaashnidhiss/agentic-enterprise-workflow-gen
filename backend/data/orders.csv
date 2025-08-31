@@ -1,0 +1,5 @@
+order_id,order_date,user_id,total_amount,currency,status
+e6fc6e0a-21be-4bc7-a8c8-3899c6900dc2,2025-08-08,3bdf9424-5d15-49dd-a61c-e7fc860f6b54,40.00,USD,completed
+1521b0e7-0e3b-4901-9102-4513cd0e12ae,2025-08-08,cb522ef3-bf3a-46e7-8f1a-668596c89738,55.50,USD,completed
+d873b0cb-307b-4a53-b76f-2ec0e09228c5,2025-08-14,80c37de8-7b77-4917-88b3-ad27e749effc,20.00,USD,completed
+3d593cdf-518c-42c5-b701-763f6e8aa744,2025-08-14,fcfb1f04-1777-4ac9-9288-fa5b2117218a,99.99,USD,completed

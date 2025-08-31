@@ -1,0 +1,25 @@
+{
+  "events": [
+    "event_id",
+    "event_date",
+    "user_id",
+    "event_type",
+    "metadata"
+  ],
+  "orders": [
+    "order_id",
+    "order_date",
+    "user_id",
+    "total_amount",
+    "currency",
+    "status"
+  ],
+  "users": [
+    "user_id",
+    "email",
+    "signup_date",
+    "last_login",
+    "country",
+    "status"
+  ]
+}

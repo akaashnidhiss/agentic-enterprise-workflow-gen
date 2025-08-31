@@ -12,15 +12,9 @@ __pycache__/
 # Ignore VS Code settings
 .vscode/
 
-# Ignore node modules and build output
-frontend/node_modules/
-frontend/.next/
-
-# Ignore environment files in frontend
-frontend/.env
-frontend/.env.*
 
 # Ignore environment files in backend
 backend/.env
 backend/.env.*
 backend/venv/
+backend/venv_for_streamlit/

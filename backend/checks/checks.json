@@ -1,0 +1,81 @@
+[
+  {
+    "check_id": 1,
+    "check_name": "Daily distinct user drop >20%",
+    "description": "Compare latest day vs previous day distinct users in events.",
+    "default_frequency": "daily",
+    "target_table": "events",
+    "key_columns": [
+      "event_date",
+      "user_id"
+    ],
+    "calculation_hint": "count_distinct(user_id) by event_date; compare last two days; fail if drop_pct > 20",
+    "severity": "high"
+  },
+  {
+    "check_id": 2,
+    "check_name": "New NULLs in critical columns",
+    "description": "Alert if new NULLs appear in email or signup_date vs previous snapshot.",
+    "default_frequency": "daily",
+    "target_table": "users",
+    "key_columns": [
+      "user_id",
+      "email",
+      "signup_date"
+    ],
+    "calculation_hint": "count_nulls(email, signup_date) vs cached baseline; fail if increased",
+    "severity": "high"
+  },
+  {
+    "check_id": 3,
+    "check_name": "Order volume spike >50%",
+    "description": "Compare latest day order_count vs 7-day average.",
+    "default_frequency": "daily",
+    "target_table": "orders",
+    "key_columns": [
+      "order_date",
+      "order_id"
+    ],
+    "calculation_hint": "count(order_id) by day; compare to 7-day avg; fail if spike > 50%",
+    "severity": "medium"
+  },
+  {
+    "check_id": 4,
+    "check_name": "Inactive users making orders",
+    "description": "Orders where the user last_login > 90 days ago.",
+    "default_frequency": "weekly",
+    "target_table": "orders,users",
+    "key_columns": [
+      "user_id",
+      "last_login",
+      "order_id"
+    ],
+    "calculation_hint": "join orders->users; filter last_login < today-90d; fail if any",
+    "severity": "medium"
+  },
+  {
+    "check_id": 5,
+    "check_name": "Events from unknown users",
+    "description": "Events whose user_id does not exist in users table.",
+    "default_frequency": "daily",
+    "target_table": "events,users",
+    "key_columns": [
+      "user_id"
+    ],
+    "calculation_hint": "left_join events->users; fail if any unmatched",
+    "severity": "high"
+  },
+  {
+    "check_id": 6,
+    "check_name": "Revenue drop >15% WoW",
+    "description": "Compare this week revenue vs last week.",
+    "default_frequency": "weekly",
+    "target_table": "orders",
+    "key_columns": [
+      "order_date",
+      "total_amount"
+    ],
+    "calculation_hint": "sum(total_amount) by week; compare WoW; fail if drop > 15%",
+    "severity": "high"
+  }
+]

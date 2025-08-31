@@ -1,0 +1,43 @@
+{
+  "events": {
+    "columns": [
+      "event_id",
+      "event_date",
+      "user_id",
+      "event_type",
+      "metadata"
+    ],
+    "schema_hash": "b7b2b2e83bb8f43841b5b842d2b6c1e86850b3a5",
+    "summary": "events is an event-level fact table (one row per user action); event_id (UUID) looks like the primary key and user_id is a foreign key to a users table. event_type is a small categorical field; event_date is date-only in this sample (only two days) — verify timestamps/timezones — and metadata is freeform JSON (often contains product_id) that must be parsed/normalized before joining to product/catalog tables.",
+    "llm_model": "gpt-5-mini",
+    "updated_at": "2025-08-16T09:33:42.124136Z"
+  },
+  "orders": {
+    "columns": [
+      "order_id",
+      "order_date",
+      "user_id",
+      "total_amount",
+      "currency",
+      "status"
+    ],
+    "schema_hash": "4fd8eb977eb107b25cf8de51a4a3228e33746c8f",
+    "summary": "orders contains transaction records (order_id, order_date, user_id, total_amount, currency, status). order_id appears UUID-like and functions as the primary key; user_id is a likely foreign key to a users table and order_id would join to order_items or payments. Sampling shows order_date is date-like and total_amount numeric, but currency and status are constant (USD, completed) and only two dates appear, suggesting limited sampling or low cardinality.",
+    "llm_model": "gpt-5-mini",
+    "updated_at": "2025-08-16T09:33:51.161167Z"
+  },
+  "users": {
+    "columns": [
+      "user_id",
+      "email",
+      "signup_date",
+      "last_login",
+      "country",
+      "status"
+    ],
+    "schema_hash": "ed1cbc1cd35a84ebbbd37928c81be78ea78a37ff",
+    "summary": "users is a user directory where user_id contains UUID-like values and is the likely primary key; signup_date and last_login are date fields and status indicates active/inactive. Typical joins (activity, billing, support) would use user_id or email, but email has blanks and last_login shows fewer distinct values (likely NULLs); country uses short codes (e.g., IN, US, DE, UK) that may be nonstandard.",
+    "llm_model": "gpt-5-mini",
+    "updated_at": "2025-08-16T09:34:00.651087Z"
+  }
+}

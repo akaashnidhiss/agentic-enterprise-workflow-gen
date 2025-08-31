@@ -1,0 +1,7 @@
+calculation_hint,check_id,check_name,default_frequency,description,key_columns,severity,target_table
+count(order_id) by day; compare to 7-day avg; fail if spike > 50%,3,Order volume spike >50%,daily,Compare latest day order_count vs 7-day average.,"[""order_date"", ""order_id""]",medium,orders
+count_distinct(user_id) by event_date; compare last two days; fail if drop_pct > 20,1,Daily distinct user drop >20%,daily,Compare latest day vs previous day distinct users in events.,"[""event_date"", ""user_id""]",high,events
+"count_nulls(email, signup_date) vs cached baseline; fail if increased",2,New NULLs in critical columns,daily,Alert if new NULLs appear in email or signup_date vs previous snapshot.,"[""user_id"", ""email"", ""signup_date""]",high,users
+join orders->users; filter last_login < today-90d; fail if any,4,Inactive users making orders,weekly,Orders where the user last_login > 90 days ago.,"[""user_id"", ""last_login"", ""order_id""]",medium,"orders,users"
+left_join events->users; fail if any unmatched,5,Events from unknown users,daily,Events whose user_id does not exist in users table.,"[""user_id""]",high,"events,users"
+sum(total_amount) by week; compare WoW; fail if drop > 15%,6,Revenue drop >15% WoW,weekly,Compare this week revenue vs last week.,"[""order_date"", ""total_amount""]",high,orders
